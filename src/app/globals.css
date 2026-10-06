@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-brand-50: #eefaf5;
+  --color-brand-100: #d6f2e6;
+  --color-brand-200: #b0e4d0;
+  --color-brand-300: #7dcfb3;
+  --color-brand-400: #46b391;
+  --color-brand-500: #229676;
+  --color-brand-600: #157a60;
+  --color-brand-700: #13624f;
+  --color-brand-800: #134e41;
+  --color-brand-900: #114137;
+  --color-brand-950: #06241e;
+
+  --color-ink-50: #f7f8f9;
+  --color-ink-100: #eef0f2;
+  --color-ink-200: #dfe3e7;
+  --color-ink-300: #c4cbd2;
+  --color-ink-400: #94a0ab;
+  --color-ink-500: #67737f;
+  --color-ink-600: #4c5661;
+  --color-ink-700: #39414a;
+  --color-ink-800: #232a31;
+  --color-ink-900: #141a1f;
+
+  --shadow-card: 0 1px 2px rgb(20 26 31 / 0.04), 0 2px 8px rgb(20 26 31 / 0.04);
+  --shadow-raised: 0 4px 24px rgb(20 26 31 / 0.08);
+  --radius-card: 1.25rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-ink-50 text-ink-900 antialiased;
+    font-feature-settings: "ss01", "cv11";
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-500);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--color-brand-100);
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-toast-in { animation: toast-in 180ms ease-out; }

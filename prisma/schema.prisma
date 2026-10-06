@@ -1,0 +1,542 @@
+// QuoteFlow database schema.
+// Every business-owned record carries `organisationId` so queries can be scoped
+// to a single organisation (tenant). Never query these tables without it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum TokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum QuoteStatus {
+  NEW
+  FOLLOWING_UP
+  REPLIED
+  WON
+  LOST
+  PAUSED
+}
+
+enum QuoteSource {
+  MANUAL
+  GMAIL
+  OUTLOOK
+}
+
+enum SequencePreset {
+  GENTLE
+  STANDARD
+  PERSISTENT
+  CUSTOM
+}
+
+enum FollowUpStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+enum EmailProvider {
+  GMAIL
+  OUTLOOK
+}
+
+enum EmailAccountStatus {
+  CONNECTED
+  EXPIRED
+  ERROR
+  DISCONNECTED
+}
+
+enum MessageDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum MessageKind {
+  QUOTE
+  FOLLOW_UP
+  REPLY
+}
+
+enum NotificationType {
+  CUSTOMER_REPLIED
+  QUOTE_WON
+  QUOTE_OVERDUE
+  AUTOMATION_FAILED
+  EMAIL_CONNECTION_EXPIRED
+  QUOTE_DETECTED
+  BILLING
+}
+
+enum Plan {
+  STARTER
+  GROWTH
+  PRO
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  INCOMPLETE
+}
+
+enum UsageType {
+  FOLLOW_UP_SENT
+  QUOTE_CREATED
+  QUOTE_DETECTED
+  TEST_EMAIL_SENT
+}
+
+// ───────────────────────────── Identity ─────────────────────────────
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  memberships   Membership[]
+  sessions      Session[]
+  tokens        VerificationToken[]
+  identities    OAuthIdentity[]
+  notifications Notification[]
+}
+
+model OAuthIdentity {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String // "google" | "microsoft"
+  providerAccountId String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id             String   @id @default(cuid())
+  tokenHash      String   @unique
+  userId         String
+  organisationId String?
+  expiresAt      DateTime
+  lastSeenAt     DateTime @default(now())
+  userAgent      String?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model VerificationToken {
+  id        String       @id @default(cuid())
+  userId    String
+  purpose   TokenPurpose
+  tokenHash String       @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+}
+
+model RateLimit {
+  key       String   @id
+  count     Int
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+}
+
+// ───────────────────────────── Organisations ─────────────────────────────
+
+model Organisation {
+  id                   String    @id @default(cuid())
+  name                 String
+  businessType         String    @default("other")
+  quoteSendMethod      String? // gmail | outlook | other | manual
+  logo                 Bytes?
+  logoMimeType         String?
+  address              String?
+  website              String?
+  phone                String?
+  signature            String?
+  senderName           String?
+  timezone             String    @default("Europe/London")
+  sendingStartHour     Int       @default(9)
+  sendingEndHour       Int       @default(17)
+  sendOnWeekends       Boolean   @default(false)
+  maxDailyEmails       Int       @default(40)
+  autoFollowUpDetected Boolean   @default(true)
+  notifyReplies        Boolean   @default(true)
+  notifyWon            Boolean   @default(true)
+  notifyFailures       Boolean   @default(true)
+  notifyByEmail        Boolean   @default(true)
+  inboundToken         String    @unique @default(cuid())
+  onboardingStep       Int       @default(1)
+  onboardingDoneAt     DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  memberships   Membership[]
+  invitations   Invitation[]
+  customers     Customer[]
+  quotes        Quote[]
+  sequences     FollowUpSequence[]
+  followUps     ScheduledFollowUp[]
+  emailAccounts EmailAccount[]
+  messages      EmailMessage[]
+  conversations Conversation[]
+  notifications Notification[]
+  subscription  Subscription?
+  usageEvents   UsageEvent[]
+  activities    ActivityEvent[]
+}
+
+model Membership {
+  id             String         @id @default(cuid())
+  userId         String
+  organisationId String
+  role           MembershipRole @default(MEMBER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organisationId])
+  @@index([organisationId])
+}
+
+model Invitation {
+  id             String         @id @default(cuid())
+  organisationId String
+  email          String
+  role           MembershipRole @default(MEMBER)
+  tokenHash      String         @unique
+  invitedById    String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime       @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([email])
+}
+
+// ───────────────────────────── Quotes ─────────────────────────────
+
+model Customer {
+  id             String   @id @default(cuid())
+  organisationId String
+  name           String
+  email          String
+  phone          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation  Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  quotes        Quote[]
+  conversations Conversation[]
+
+  @@unique([organisationId, email])
+  @@index([organisationId, name])
+}
+
+model Quote {
+  id                String      @id @default(cuid())
+  organisationId    String
+  customerId        String
+  sequenceId        String?
+  emailAccountId    String?
+  createdById       String?
+  description       String
+  amountPence       Int?
+  currency          String      @default("GBP")
+  sentAt            DateTime
+  status            QuoteStatus @default(NEW)
+  source            QuoteSource @default(MANUAL)
+  sourceMessageId   String?
+  sourceThreadId    String?
+  sourceSubject     String?
+  sourceInternetMessageId String?
+  nextFollowUpAt    DateTime?
+  needsAttention    Boolean     @default(false)
+  repliedAt         DateTime?
+  wonAt             DateTime?
+  lostAt            DateTime?
+  pausedAt          DateTime?
+  overdueNotifiedAt DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  organisation  Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  customer      Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sequence      FollowUpSequence?   @relation(fields: [sequenceId], references: [id], onDelete: SetNull)
+  emailAccount  EmailAccount?       @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+  followUps     ScheduledFollowUp[]
+  messages      EmailMessage[]
+  conversation  Conversation?
+  activities    ActivityEvent[]
+  notifications Notification[]
+
+  @@unique([organisationId, sourceMessageId])
+  @@index([organisationId, status])
+  @@index([organisationId, sentAt])
+  @@index([organisationId, needsAttention])
+  @@index([organisationId, sourceThreadId])
+  @@index([customerId])
+}
+
+// ───────────────────────────── Follow-ups ─────────────────────────────
+
+model FollowUpSequence {
+  id             String         @id @default(cuid())
+  organisationId String
+  name           String
+  preset         SequencePreset @default(STANDARD)
+  isDefault      Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  steps        FollowUpStep[]
+  quotes       Quote[]
+
+  @@index([organisationId])
+}
+
+model FollowUpStep {
+  id         String   @id @default(cuid())
+  sequenceId String
+  position   Int
+  delayDays  Int
+  subject    String
+  body       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sequence  FollowUpSequence    @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  followUps ScheduledFollowUp[]
+
+  @@unique([sequenceId, position])
+}
+
+model ScheduledFollowUp {
+  id             String         @id @default(cuid())
+  organisationId String
+  quoteId        String
+  stepId         String?
+  position       Int
+  delayDays      Int
+  scheduledFor   DateTime
+  status         FollowUpStatus @default(SCHEDULED)
+  attempts       Int            @default(0)
+  lockedAt       DateTime?
+  sentAt         DateTime?
+  subject        String?
+  lastError      String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organisation Organisation  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  quote        Quote         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  step         FollowUpStep? @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  message      EmailMessage?
+
+  @@unique([quoteId, position])
+  @@index([status, scheduledFor])
+  @@index([organisationId, status])
+}
+
+// ───────────────────────────── Email ─────────────────────────────
+
+model EmailAccount {
+  id              String             @id @default(cuid())
+  organisationId  String
+  connectedById   String?
+  provider        EmailProvider
+  email           String
+  displayName     String?
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  tokenExpiresAt  DateTime?
+  scope           String?
+  status          EmailAccountStatus @default(CONNECTED)
+  lastError       String?
+  lastSyncedAt    DateTime?
+  syncLockedAt    DateTime?
+  connectedAt     DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  quotes       Quote[]
+  messages     EmailMessage[]
+
+  @@unique([organisationId, provider, email])
+  @@index([status])
+}
+
+model EmailMessage {
+  id                String           @id @default(cuid())
+  organisationId    String
+  quoteId           String?
+  conversationId    String?
+  emailAccountId    String?
+  followUpId        String?          @unique
+  direction         MessageDirection
+  kind              MessageKind
+  providerMessageId String?
+  threadId          String?
+  fromEmail         String
+  fromName          String?
+  toEmail           String
+  subject           String
+  bodyText          String?
+  sentAt            DateTime
+  createdAt         DateTime         @default(now())
+
+  organisation Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  quote        Quote?             @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  conversation Conversation?      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  emailAccount EmailAccount?      @relation(fields: [emailAccountId], references: [id], onDelete: SetNull)
+  followUp     ScheduledFollowUp? @relation(fields: [followUpId], references: [id], onDelete: SetNull)
+
+  @@unique([organisationId, providerMessageId])
+  @@index([quoteId, sentAt])
+  @@index([organisationId, threadId])
+}
+
+model Conversation {
+  id             String    @id @default(cuid())
+  organisationId String
+  quoteId        String    @unique
+  customerId     String
+  needsAttention Boolean   @default(false)
+  lastMessageAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organisation Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  quote        Quote          @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  customer     Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  messages     EmailMessage[]
+
+  @@index([organisationId, needsAttention])
+}
+
+// ───────────────────────────── Notifications & activity ─────────────────────────────
+
+model Notification {
+  id             String           @id @default(cuid())
+  organisationId String
+  userId         String
+  quoteId        String?
+  type           NotificationType
+  title          String
+  body           String
+  href           String?
+  readAt         DateTime?
+  emailedAt      DateTime?
+  createdAt      DateTime         @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quote        Quote?       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([userId, organisationId, readAt])
+  @@index([organisationId, createdAt])
+}
+
+model ActivityEvent {
+  id             String   @id @default(cuid())
+  organisationId String
+  quoteId        String?
+  actorUserId    String?
+  type           String
+  message        String
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  quote        Quote?       @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, createdAt])
+  @@index([quoteId, createdAt])
+}
+
+// ───────────────────────────── Billing ─────────────────────────────
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  organisationId       String             @unique
+  plan                 Plan               @default(GROWTH)
+  status               SubscriptionStatus @default(TRIALING)
+  trialEndsAt          DateTime?
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  paymentFailedAt      DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+}
+
+model UsageEvent {
+  id             String    @id @default(cuid())
+  organisationId String
+  type           UsageType
+  quantity       Int       @default(1)
+  quoteId        String?
+  createdAt      DateTime  @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, type, createdAt])
+}
+
+model WebhookEvent {
+  id        String   @id // provider event id
+  source    String
+  type      String
+  createdAt DateTime @default(now())
+}
