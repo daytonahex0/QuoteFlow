@@ -4,6 +4,7 @@ import { signPayload } from "@/lib/crypto";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { safeNext } from "@/lib/safe-redirect";
 
 const OAUTH_COOKIE = "qf_oauth";
 
@@ -16,8 +17,7 @@ function back(req: NextRequest, path: string, error: string) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ provider: string }> }) {
   const { provider } = await params;
   const purpose: OAuthPurpose = req.nextUrl.searchParams.get("purpose") === "mailbox" ? "mailbox" : "signin";
-  const nextParam = req.nextUrl.searchParams.get("next") ?? "";
-  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : purpose === "mailbox" ? "/settings/email" : "/dashboard";
+  const next = safeNext(req.nextUrl.searchParams.get("next"), purpose === "mailbox" ? "/settings/email" : "/dashboard");
 
   if (!isProvider(provider)) return back(req, "/login", "oauth_unknown");
   if (!providerConfigured(provider)) return back(req, purpose === "mailbox" ? next : "/login", "oauth_not_configured");

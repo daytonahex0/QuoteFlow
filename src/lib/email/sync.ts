@@ -32,11 +32,12 @@ export async function syncEmailAccount(accountId: string, now = new Date()) {
 
   try {
     const client = mailboxClient(account);
-    const replies = await detectReplies(account, await client.listInboxSince(since));
+    // Quotes first, so replies to a quote found in this same sync stop it immediately.
     let detected = 0;
     if (entitlementFor(account.organisation.subscription, now).active) {
       detected = await detectQuotes(account, await client.listSentSince(since), account.organisation.name, now);
     }
+    const replies = await detectReplies(account, await client.listInboxSince(since));
     await db.emailAccount.update({
       where: { id: account.id },
       data: { lastSyncedAt: now, syncLockedAt: null, lastError: null },

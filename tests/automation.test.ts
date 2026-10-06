@@ -326,6 +326,25 @@ describe("follow-up sequence lifecycle", () => {
   });
 });
 
+describe("editing sequences", () => {
+  it("keeps scheduled follow-ups attached when text changes, and reschedules when timing changes", async () => {
+    const { updateSequenceSteps } = await import("@/lib/automation/sequence-steps");
+    const { org } = await makeOrg();
+    const quote = await makeQuote(org.id);
+    await startFollowUps(org.id, quote.id);
+    const seq = await db.followUpSequence.findFirstOrThrow({ where: { organisationId: org.id }, include: { steps: { orderBy: { position: "asc" } } } });
+    const steps = seq.steps.map((s) => ({ delayDays: s.delayDays, subject: s.subject, body: s.body }));
+
+    expect(await updateSequenceSteps(org.id, seq.id, { steps: steps.map((s) => ({ ...s, subject: `New ${s.subject}` })) })).toBe(0);
+    const rows = await db.scheduledFollowUp.findMany({ where: { quoteId: quote.id } });
+    expect(rows.every((r) => r.stepId && r.status === "SCHEDULED")).toBe(true);
+
+    expect(await updateSequenceSteps(org.id, seq.id, { steps: [steps[0]!, { ...steps[1]!, delayDays: 7 }] })).toBe(1);
+    const after = await db.scheduledFollowUp.findMany({ where: { quoteId: quote.id, status: "SCHEDULED" }, orderBy: { position: "asc" } });
+    expect(after.map((r) => r.delayDays)).toEqual([2, 7]);
+  });
+});
+
 describe("mailbox sync", () => {
   it("detects a sent quote, starts follow-ups, sends in-thread, then detects the reply", async () => {
     const { org } = await makeOrg();

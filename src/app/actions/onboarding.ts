@@ -8,6 +8,7 @@ import { UserError, type ActionResult } from "@/lib/errors";
 import { requireOrg } from "@/lib/auth/session";
 import { BUSINESS_TYPE_VALUES } from "@/lib/organisations";
 import { presetSteps, TEMPLATE_STYLES } from "@/lib/sequences";
+import { updateSequenceSteps } from "@/lib/automation/sequence-steps";
 
 const stepSchemas = {
   1: z.object({ businessType: z.enum(BUSINESS_TYPE_VALUES), name: z.string().trim().min(1, "Enter your business name").max(120) }),
@@ -43,18 +44,12 @@ export async function saveOnboardingStepAction(step: Step, data: Record<string, 
         if (!sequence) throw new UserError("Your default sequence is missing. Please refresh and try again.");
         const preset = input.preset as "STANDARD" | "GENTLE" | "PERSISTENT" | "CUSTOM";
         const steps = presetSteps(preset);
-        await db.$transaction(async (tx) => {
-          await tx.followUpStep.deleteMany({ where: { sequenceId: sequence.id } });
-          await tx.followUpSequence.update({
-            where: { id: sequence.id },
-            data: {
-              preset,
-              name: preset === "CUSTOM" ? "My follow-up sequence" : `${preset.charAt(0)}${preset.slice(1).toLowerCase()} follow-up`,
-              steps: { create: steps.map((s, i) => ({ position: i + 1, delayDays: s.delayDays, subject: s.subject, body: s.body })) },
-            },
-          });
-          await tx.organisation.update({ where: { id: org.id }, data: { onboardingStep: nextStep } });
+        await updateSequenceSteps(org.id, sequence.id, {
+          preset,
+          name: preset === "CUSTOM" ? "My follow-up sequence" : `${preset.charAt(0)}${preset.slice(1).toLowerCase()} follow-up`,
+          steps,
         });
+        await db.organisation.update({ where: { id: org.id }, data: { onboardingStep: nextStep } });
         break;
       }
       case 4:

@@ -117,7 +117,7 @@ export function QuoteActions({ quoteId, status, needsAttention, preview, hasNext
             <MessageSquareReply className="size-4" aria-hidden /> Customer replied
           </Button>
         )}
-        {status === "REPLIED" && needsAttention && (
+        {(status === "REPLIED" || status === "FOLLOWING_UP") && needsAttention && (
           <Button variant="outline" className="col-span-2" onClick={() => run({ command: "acknowledge" })} {...btn("acknowledge")}>
             <Check className="size-4" aria-hidden /> Mark as handled
           </Button>

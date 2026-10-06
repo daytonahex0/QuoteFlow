@@ -167,3 +167,14 @@ describe("validation", () => {
     expect(r.success).toBe(false);
   });
 });
+
+import { safeNext } from "@/lib/safe-redirect";
+describe("redirect safety", () => {
+  it("only allows same-site relative paths", () => {
+    expect(safeNext("/quotes/1")).toBe("/quotes/1");
+    expect(safeNext("//evil.com")).toBe("/dashboard");
+    expect(safeNext("/\\evil.com")).toBe("/dashboard");
+    expect(safeNext("https://evil.com")).toBe("/dashboard");
+    expect(safeNext(null, "/x")).toBe("/x");
+  });
+});

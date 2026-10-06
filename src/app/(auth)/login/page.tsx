@@ -7,13 +7,14 @@ import { FlashToast } from "@/components/ui/toast";
 import { getSession } from "@/lib/auth/session";
 import { integrations } from "@/lib/env";
 import { flashFrom } from "@/lib/flash";
+import { safeNext } from "@/lib/safe-redirect";
 
 export const metadata: Metadata = { title: "Log in", alternates: { canonical: "/login" } };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const next = typeof params.next === "string" ? params.next : undefined;
-  if (await getSession()) redirect(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
+  if (await getSession()) redirect(safeNext(next));
   const flash = flashFrom(params);
   return (
     <div className="rounded-3xl border border-ink-200/70 bg-white p-6 shadow-[var(--shadow-card)] sm:p-8">

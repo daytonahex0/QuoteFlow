@@ -14,12 +14,8 @@ import { createOrganisation } from "@/lib/organisations";
 import { emailSchema, loginSchema, passwordSchema, signupSchema } from "@/lib/validation";
 import { audit, logger } from "@/lib/logger";
 import { sha256 } from "@/lib/crypto";
+import { safeNext } from "@/lib/safe-redirect";
 
-/** Only allow same-site relative redirects (prevents open redirects). */
-function safeNext(next: string | null | undefined, fallback = "/dashboard") {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return fallback;
-  return next;
-}
 
 async function ip() {
   return clientIp(await headers());

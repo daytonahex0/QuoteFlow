@@ -14,24 +14,11 @@ import { createSequence } from "@/lib/organisations";
 import { SEQUENCE_PRESETS } from "@/lib/sequences";
 import { PLANS } from "@/lib/plans";
 import { startFollowUps } from "@/lib/automation/followups";
+import { updateSequenceSteps } from "@/lib/automation/sequence-steps";
 import { renderTemplate, textToHtml } from "@/lib/templates";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { mailboxClient, MailboxAuthError } from "@/lib/email/mailbox";
 import { sendSystemEmail } from "@/lib/email/system-mailer";
-import { logger } from "@/lib/logger";
-
-/** Reschedules every active quote on a sequence after its timing changed. */
-async function rescheduleQuotesOn(organisationId: string, sequenceId: string) {
-  const quotes = await db.quote.findMany({ where: { organisationId, sequenceId, status: "FOLLOWING_UP" }, select: { id: true } });
-  for (const q of quotes) {
-    try {
-      await startFollowUps(organisationId, q.id, { sequenceId, reason: "sequence_changed" });
-    } catch (error) {
-      logger.warn("sequence.reschedule_failed", { organisationId, quoteId: q.id, error });
-    }
-  }
-  return quotes.length;
-}
 
 export async function saveSequenceAction(sequenceId: string, payload: unknown): Promise<ActionResult> {
   return runAction("save_sequence", async () => {
@@ -41,25 +28,9 @@ export async function saveSequenceAction(sequenceId: string, payload: unknown): 
     if (input.steps.length > ent.limits.stepsPerSequence) {
       throw new UserError(`Your ${PLANS[ent.plan].name} plan allows up to ${ent.limits.stepsPerSequence} follow-ups per sequence. Upgrade for more.`);
     }
-    const seq = await db.followUpSequence.findFirst({ where: { id: sequenceId, organisationId: org.id }, include: { steps: { orderBy: { position: "asc" } } } });
+    const seq = await db.followUpSequence.findFirst({ where: { id: sequenceId, organisationId: org.id }, select: { id: true } });
     if (!seq) throw new UserError("Sequence not found.");
-
-    const timingChanged =
-      seq.steps.length !== input.steps.length || seq.steps.some((s, i) => s.delayDays !== input.steps[i]?.delayDays);
-
-    await db.$transaction(async (tx) => {
-      await tx.followUpSequence.update({ where: { id: seq.id }, data: { name: input.name, preset: timingChanged ? "CUSTOM" : seq.preset } });
-      // Update steps in place by position so scheduled follow-ups keep pointing at them.
-      for (const [i, step] of input.steps.entries()) {
-        await tx.followUpStep.upsert({
-          where: { sequenceId_position: { sequenceId: seq.id, position: i + 1 } },
-          create: { sequenceId: seq.id, position: i + 1, delayDays: step.delayDays, subject: step.subject, body: step.body },
-          update: { delayDays: step.delayDays, subject: step.subject, body: step.body },
-        });
-      }
-      await tx.followUpStep.deleteMany({ where: { sequenceId: seq.id, position: { gt: input.steps.length } } });
-    });
-    const rescheduled = timingChanged ? await rescheduleQuotesOn(org.id, seq.id) : 0;
+    const rescheduled = await updateSequenceSteps(org.id, seq.id, { name: input.name, steps: input.steps });
     revalidatePath("/follow-ups");
     return { ok: true, message: rescheduled ? `Saved. ${rescheduled} active quote${rescheduled === 1 ? "" : "s"} rescheduled.` : "Sequence saved." };
   });

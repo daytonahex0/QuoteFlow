@@ -173,7 +173,7 @@ class GmailClient implements MailboxClient {
   }
 
   listSentSince(since: Date) {
-    return this.search(`in:sent after:${Math.floor(since.getTime() / 1000)}`);
+    return this.search(`in:sent after:${Math.floor(since.getTime() / 1000)} {quote quotes quotation estimate proposal tender}`, 100);
   }
 
   listInboxSince(since: Date) {

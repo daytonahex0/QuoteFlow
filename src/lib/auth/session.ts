@@ -78,14 +78,16 @@ export type OrgContext = Awaited<ReturnType<typeof loadOrgContext>>;
 const loadOrgContext = cache(async () => {
   const session = await getSession();
   if (!session) return null;
-  const membership = await db.membership.findFirst({
-    where: session.organisationId
-      ? { userId: session.userId, organisationId: session.organisationId }
-      : { userId: session.userId },
-    include: { organisation: { include: { subscription: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const include = { organisation: { include: { subscription: true } } };
+  // Prefer the session's active organisation; fall back to any remaining membership.
+  const membership =
+    (session.organisationId
+      ? await db.membership.findFirst({ where: { userId: session.userId, organisationId: session.organisationId }, include })
+      : null) ?? (await db.membership.findFirst({ where: { userId: session.userId }, include, orderBy: { createdAt: "asc" } }));
   if (!membership) return null;
+  if (membership.organisationId !== session.organisationId) {
+    await db.session.update({ where: { id: session.id }, data: { organisationId: membership.organisationId } });
+  }
   return { session, user: session.user, membership, org: membership.organisation };
 });
 
@@ -97,7 +99,15 @@ export async function requireOrg(options: { roles?: MembershipRole[]; allowIncom
   const session = await getSession();
   if (!session) redirect("/login?expired=1");
   const ctx = await loadOrgContext();
-  if (!ctx) redirect("/signup?step=business");
+  if (!ctx) {
+    // No business left (e.g. removed from a team): give the user a fresh one to set up.
+    const { createOrganisation } = await import("../organisations");
+    const org = await db.$transaction((tx) =>
+      createOrganisation(tx, { userId: session.userId, name: `${session.user.name.split(" ")[0]}'s business`.slice(0, 120), businessType: "other" }),
+    );
+    await db.session.update({ where: { id: session.id }, data: { organisationId: org.id } });
+    redirect("/onboarding");
+  }
   if (!options.allowIncompleteOnboarding && !ctx.org.onboardingDoneAt) redirect("/onboarding");
   if (options.roles && !options.roles.includes(ctx.membership.role)) redirect("/dashboard?denied=1");
   return ctx;

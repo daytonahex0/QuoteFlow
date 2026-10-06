@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { audit, logger } from "@/lib/logger";
 import { createOrganisation } from "@/lib/organisations";
 import { syncEmailAccount } from "@/lib/email/sync";
+import { safeNext } from "@/lib/safe-redirect";
 
 type OAuthCookie = {
   state: string;
@@ -38,6 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   const saved = verifyPayload<OAuthCookie>(jar.get("qf_oauth")?.value);
   const state = req.nextUrl.searchParams.get("state") ?? "";
   const code = req.nextUrl.searchParams.get("code");
+  if (saved) saved.next = safeNext(saved.next);
   const fallback = saved?.purpose === "mailbox" ? saved.next : "/login";
 
   if (!isProvider(provider) || !saved || saved.provider !== provider || saved.exp < Date.now() || !safeEqual(saved.state, state)) {
