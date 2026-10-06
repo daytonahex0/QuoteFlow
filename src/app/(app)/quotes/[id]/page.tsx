@@ -9,8 +9,7 @@ import { formatMoney } from "@/lib/money";
 import { describeWhen, timeAgo } from "@/lib/schedule";
 import { renderTemplate } from "@/lib/templates";
 import { sequenceSummary } from "@/lib/sequence-summary";
-import { replyToAddressFor } from "@/lib/automation/followups";
-import { integrations } from "@/lib/env";
+import { canSendFollowUps, replyToAddressFor } from "@/lib/automation/followups";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/badge";
 import { FlashToast } from "@/components/ui/toast";
@@ -37,9 +36,10 @@ export default async function QuoteDetailPage({ params, searchParams }: { params
   });
   if (!quote) notFound();
 
-  const [sequences, connectedAccount] = await Promise.all([
+  const [sequences, connectedAccount, canSend] = await Promise.all([
     db.followUpSequence.findMany({ where: { organisationId: org.id }, include: { steps: { orderBy: { position: "asc" } } }, orderBy: { createdAt: "asc" } }),
     db.emailAccount.findFirst({ where: { organisationId: org.id, status: "CONNECTED" }, select: { email: true } }),
+    canSendFollowUps(org.id),
   ]);
 
   const tz = org.timezone;
@@ -97,6 +97,12 @@ export default async function QuoteDetailPage({ params, searchParams }: { params
               Email {quote.customer.name.split(" ")[0]}
             </a>
           </p>
+        </div>
+      )}
+      {!canSend && ["NEW", "FOLLOWING_UP"].includes(quote.status) && (
+        <div className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-[15px] text-rose-900">
+          Follow-ups can’t be sent until you connect an email account.{" "}
+          <Link href="/settings/email" className="font-semibold underline">Connect email</Link>
         </div>
       )}
       {quote.status === "NEW" && (
@@ -164,10 +170,10 @@ export default async function QuoteDetailPage({ params, searchParams }: { params
           </Card>
 
           <Card>
-            <CardHeader title="Conversation" description={quote.messages.length ? undefined : "Emails linked to this quote will appear here."} />
+            <CardHeader title="Conversation" />
             <CardBody>
               {quote.messages.length === 0 ? (
-                <p className="text-sm text-ink-500">No emails yet.{integrations.resendConfigured() || connectedAccount ? "" : " Follow-ups will show here once sent."}</p>
+                <p className="text-sm text-ink-500">No emails yet. Follow-ups and customer replies will appear here.</p>
               ) : (
                 <ul className="space-y-3">
                   {quote.messages.map((m) => (

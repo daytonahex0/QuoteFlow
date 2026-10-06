@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { SETTINGS_SECTIONS } from "@/components/app/settings-nav";
+import { SETTINGS_SECTIONS } from "@/lib/settings-sections";
 import { PageHeader } from "@/components/app/page-header";
 import { logoutAction } from "@/app/actions/auth";
 

@@ -17,6 +17,7 @@ import { handleCustomerReply } from "./replies";
 
 const MAX_ATTEMPTS = 3;
 const STALE_LOCK_MINUTES = 10;
+const NO_SENDER = "No email account connected";
 
 export function windowOf(org: Organisation): SendingWindow {
   return {
@@ -250,9 +251,13 @@ export async function sendNextFollowUpNow(organisationId: string, quoteId: strin
     throw new UserError(
       result === "cancelled"
         ? "The customer has already replied, so we stopped the follow-ups."
-        : row?.lastError?.startsWith("Waiting")
-          ? "Your email connection needs reconnecting before we can send. Go to Settings → Email."
-          : "We couldn't send that follow-up. We'll retry automatically shortly.",
+        : row?.lastError === NO_SENDER
+          ? "Connect your email in Settings → Email so QuoteFlow can send follow-ups for you."
+          : row?.lastError?.startsWith("Waiting for your email")
+            ? "Your email connection needs reconnecting before we can send. Go to Settings → Email."
+            : row?.lastError?.startsWith("Waiting for an active")
+              ? "Your subscription isn't active. Choose a plan in Settings → Billing."
+              : "We couldn't send that follow-up. We'll retry automatically shortly.",
     );
   }
 }
@@ -299,6 +304,12 @@ async function reschedule(id: string, at: Date, lastError?: string) {
 async function refreshNextFollowUp(quoteId: string) {
   const next = await db.scheduledFollowUp.findFirst({ where: { quoteId, status: "SCHEDULED" }, orderBy: { scheduledFor: "asc" } });
   await db.quote.update({ where: { id: quoteId }, data: { nextFollowUpAt: next?.scheduledFor ?? null } });
+}
+
+/** Whether QuoteFlow has any way to send follow-ups for this organisation right now. */
+export async function canSendFollowUps(organisationId: string): Promise<boolean> {
+  if (integrations.resendConfigured() || env().NODE_ENV !== "production") return true;
+  return (await db.emailAccount.count({ where: { organisationId, status: "CONNECTED" } })) > 0;
 }
 
 export function replyToAddressFor(quoteId: string): string | null {
@@ -379,7 +390,7 @@ export async function processFollowUp(id: string, opts: { immediate?: boolean; n
     account = await db.emailAccount.findFirst({ where: { organisationId: org.id, status: "CONNECTED" }, orderBy: { connectedAt: "asc" } });
   }
   if (!account && !integrations.resendConfigured() && env().NODE_ENV === "production") {
-    return failPermanently(row.id, quote.id, org.id, quote.customer.name, "No email account connected");
+    return failPermanently(row.id, quote.id, org.id, quote.customer.name, NO_SENDER);
   }
 
   try {

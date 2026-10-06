@@ -71,7 +71,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       <PageHeader
         title="Quotes"
         description={`${everything} quote${everything === 1 ? "" : "s"} · ${countFor("FOLLOWING_UP")} being followed up`}
-        actions={<ButtonLink href="/quotes/new" className="hidden sm:inline-flex"><Plus className="size-5" aria-hidden /> Add quote</ButtonLink>}
+        actions={<span className="hidden sm:block"><ButtonLink href="/quotes/new"><Plus className="size-5" aria-hidden /> Add quote</ButtonLink></span>}
       />
 
       {everything === 0 ? (

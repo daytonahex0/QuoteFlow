@@ -1,7 +1,8 @@
 "use client";
 
+import { useFormAction } from "@/components/ui/use-form-action";
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { forgotPasswordAction, loginAction, resetPasswordAction, signupAction } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -42,9 +43,9 @@ function PasswordInput({ label, name, error, autoComplete, hint }: { label: stri
 }
 
 export function LoginForm({ next }: { next?: string }) {
-  const [state, action, pending] = useActionState(loginAction, null);
+  const [state, action, pending] = useFormAction(loginAction);
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form onSubmit={action} className="space-y-4" noValidate>
       <FormError state={state} />
       <input type="hidden" name="next" value={next ?? ""} />
       <Input label="Email" name="email" type="email" autoComplete="email" inputMode="email" required error={fe(state, "email")} />
@@ -58,9 +59,9 @@ export function LoginForm({ next }: { next?: string }) {
 }
 
 export function SignupForm({ businessTypes, invite, inviteEmail, inviteOrg }: { businessTypes: BusinessType[]; invite?: string; inviteEmail?: string; inviteOrg?: string }) {
-  const [state, action, pending] = useActionState(signupAction, null);
+  const [state, action, pending] = useFormAction(signupAction);
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form onSubmit={action} className="space-y-4" noValidate>
       <FormError state={state} />
       {invite && <input type="hidden" name="invite" value={invite} />}
       <Input label="Your name" name="name" autoComplete="name" required error={fe(state, "name")} maxLength={100} />
@@ -95,12 +96,12 @@ export function SignupForm({ businessTypes, invite, inviteEmail, inviteOrg }: { 
 }
 
 export function ForgotPasswordForm() {
-  const [state, action, pending] = useActionState(forgotPasswordAction, null);
+  const [state, action, pending] = useFormAction(forgotPasswordAction);
   if (state?.ok) {
     return <div role="status" className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-4 text-[15px] text-brand-900">{state.message}</div>;
   }
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form onSubmit={action} className="space-y-4" noValidate>
       <FormError state={state} />
       <Input label="Email" name="email" type="email" autoComplete="email" inputMode="email" required error={fe(state, "email")} />
       <Button type="submit" size="lg" className="w-full" loading={pending}>Send reset link</Button>
@@ -109,14 +110,14 @@ export function ForgotPasswordForm() {
 }
 
 export function ResetPasswordForm({ token }: { token: string }) {
-  const [state, action, pending] = useActionState(resetPasswordAction, null);
+  const [state, action, pending] = useFormAction(resetPasswordAction);
   const toast = useToast();
   useEffect(() => {
     if (state && !state.ok && !state.fieldErrors) toast.error(state.error);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form onSubmit={action} className="space-y-4" noValidate>
       <FormError state={state} />
       <input type="hidden" name="token" value={token} />
       <PasswordInput label="New password" name="password" autoComplete="new-password" error={fe(state, "password")} hint="At least 10 characters, with a number or symbol." />

@@ -16,6 +16,7 @@ export default async function BusinessSettingsPage() {
         <fieldset disabled={!canEdit} className="disabled:opacity-70">
           <BusinessForm
             hasLogo={Boolean(org.logoMimeType)}
+            logoVersion={org.updatedAt.getTime().toString(36)}
             businessTypes={BUSINESS_TYPES.map((b) => ({ value: b.value, label: b.label }))}
             org={{
               name: org.name,

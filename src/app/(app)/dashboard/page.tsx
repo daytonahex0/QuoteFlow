@@ -104,7 +104,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h1 className="text-2xl font-bold tracking-tight text-ink-900 sm:text-[1.75rem]">{greeting(org.timezone)}, {firstName}</h1>
           <p className="mt-1 text-[15px] text-ink-500">Here’s how your quotes are performing.</p>
         </div>
-        <ButtonLink href="/quotes/new" size="sm" className="hidden sm:inline-flex"><Plus className="size-4" aria-hidden /> Add quote</ButtonLink>
+        <span className="hidden sm:block"><ButtonLink href="/quotes/new" size="sm"><Plus className="size-4" aria-hidden /> Add quote</ButtonLink></span>
       </div>
 
       <section aria-label="Overview" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -152,7 +152,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         </p>
                       </div>
                       <span className="shrink-0 rounded-xl bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900">
-                        {q.status === "REPLIED" ? "View conversation" : "View"}
+                        {q.status === "REPLIED" ? <><span className="sm:hidden">View</span><span className="hidden sm:inline">View conversation</span></> : "View"}
                       </span>
                     </Link>
                   </li>

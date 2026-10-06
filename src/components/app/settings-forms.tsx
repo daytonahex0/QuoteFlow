@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useFormAction } from "@/components/ui/use-form-action";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw, Trash2, Upload } from "lucide-react";
 import {
@@ -28,7 +29,7 @@ function useSettingsForm(action: FormAction, opts: { resetOnSuccess?: boolean } 
   const toast = useToast();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [state, run, pending] = useActionState<ActionResult | null, FormData>(action, null);
+  const [state, run, pending] = useFormAction(action);
   useEffect(() => {
     if (!state) return;
     if (state.ok) {
@@ -50,14 +51,14 @@ function SaveBar({ pending, label = "Save changes" }: { pending: boolean; label?
   );
 }
 
-export function BusinessForm({ org, businessTypes, hasLogo }: { org: { name: string; businessType: string; senderName: string; address: string; website: string; phone: string; signature: string }; businessTypes: { value: string; label: string }[]; hasLogo: boolean }) {
+export function BusinessForm({ org, businessTypes, hasLogo, logoVersion }: { logoVersion: string; org: { name: string; businessType: string; senderName: string; address: string; website: string; phone: string; signature: string }; businessTypes: { value: string; label: string }[]; hasLogo: boolean }) {
   const { run, pending, err } = useSettingsForm(updateBusinessAction);
   const [fileName, setFileName] = useState<string | null>(null);
   const [removing, startRemove] = useTransition();
   const toast = useToast();
   const router = useRouter();
   return (
-    <form action={run} className="space-y-4" noValidate>
+    <form onSubmit={run} className="space-y-4" noValidate>
       <Input label="Business name" name="name" defaultValue={org.name} required maxLength={120} error={err("name")} />
       <Select label="Business type" name="businessType" defaultValue={org.businessType}>
         {businessTypes.map((b) => <option key={b.value} value={b.value}>{b.label}</option>)}
@@ -67,7 +68,7 @@ export function BusinessForm({ org, businessTypes, hasLogo }: { org: { name: str
         <div className="flex flex-wrap items-center gap-3">
           {hasLogo && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/api/logo?t=${Date.now()}`} alt="Current logo" className="size-14 rounded-xl border border-ink-200 object-contain" />
+            <img src={`/api/logo?v=${logoVersion}`} alt="Current logo" className="size-14 rounded-xl border border-ink-200 object-contain" />
           )}
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-ink-200 bg-white px-4 text-[15px] font-semibold text-ink-800 hover:bg-ink-50 focus-within:ring-4 focus-within:ring-brand-100">
             <Upload className="size-4" aria-hidden /> {fileName ?? (hasLogo ? "Replace logo" : "Upload logo")}
@@ -116,7 +117,7 @@ export function FollowUpSettingsForm({ org, sequences, timezones }: { org: { tim
   const hours = Array.from({ length: 25 }, (_, h) => h);
   const label = (h: number) => (h === 24 ? "24:00 (midnight)" : `${String(h).padStart(2, "0")}:00`);
   return (
-    <form action={run} className="space-y-4" noValidate>
+    <form onSubmit={run} className="space-y-4" noValidate>
       <Select label="Default sequence" name="defaultSequenceId" defaultValue={sequences.find((s) => s.isDefault)?.id}>
         {sequences.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
       </Select>
@@ -144,7 +145,7 @@ export function FollowUpSettingsForm({ org, sequences, timezones }: { org: { tim
 export function NotificationSettingsForm({ org }: { org: { notifyReplies: boolean; notifyWon: boolean; notifyFailures: boolean; notifyByEmail: boolean } }) {
   const { run, pending } = useSettingsForm(updateNotificationSettingsAction);
   return (
-    <form action={run} className="space-y-4">
+    <form onSubmit={run} className="space-y-4">
       <div className="divide-y divide-ink-100 rounded-2xl border border-ink-200 px-4">
         <Toggle name="notifyReplies" defaultChecked={org.notifyReplies} label="Customer replies" description="When a customer responds to a quote or follow-up." />
         <Toggle name="notifyWon" defaultChecked={org.notifyWon} label="Won quotes" description="When a quote is marked as won." />
@@ -260,7 +261,7 @@ export function BillingButtons({ hasCustomer, hasSubscription, cancelAtPeriodEnd
 export function InviteForm({ disabled }: { disabled: boolean }) {
   const { run, pending, err, formRef } = useSettingsForm(inviteMemberAction, { resetOnSuccess: true });
   return (
-    <form ref={formRef} action={run} className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end" noValidate>
+    <form ref={formRef} onSubmit={run} className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end" noValidate>
       <Input label="Email address" name="email" type="email" inputMode="email" required error={err("email")} disabled={disabled} />
       <Select label="Role" name="role" defaultValue="MEMBER" disabled={disabled}>
         <option value="MEMBER">Member</option>
@@ -299,7 +300,7 @@ export function ProfileForm({ name, email, hasPassword }: { name: string; email:
   const { run, pending, err } = useSettingsForm(updateProfileAction);
   const [currentEmail, setCurrentEmail] = useState(email);
   return (
-    <form action={run} className="space-y-4" noValidate>
+    <form onSubmit={run} className="space-y-4" noValidate>
       <Input label="Name" name="name" defaultValue={name} required autoComplete="name" error={err("name")} />
       <Input label="Email" name="email" type="email" defaultValue={email} required autoComplete="email" onChange={(e) => setCurrentEmail(e.target.value)} error={err("email")} />
       {hasPassword && currentEmail.trim().toLowerCase() !== email && (
@@ -313,7 +314,7 @@ export function ProfileForm({ name, email, hasPassword }: { name: string; email:
 export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
   const { run, pending, err, formRef } = useSettingsForm(changePasswordAction, { resetOnSuccess: true });
   return (
-    <form ref={formRef} action={run} className="space-y-4" noValidate>
+    <form ref={formRef} onSubmit={run} className="space-y-4" noValidate>
       {hasPassword && <Input label="Current password" name="currentPassword" type="password" autoComplete="current-password" required error={err("currentPassword")} />}
       <Input label="New password" name="newPassword" type="password" autoComplete="new-password" required error={err("newPassword")} hint="At least 10 characters, with a number or symbol." />
       <SaveBar pending={pending} label={hasPassword ? "Change password" : "Set password"} />
@@ -322,10 +323,10 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
 }
 
 export function DeleteAccountForm({ isOwner, hasPassword }: { isOwner: boolean; hasPassword: boolean }) {
-  const [state, run, pending] = useActionState<ActionResult | null, FormData>(deleteAccountAction, null);
+  const [state, run, pending] = useFormAction(deleteAccountAction);
   const err = (k: string) => (state && !state.ok ? state.fieldErrors?.[k] : undefined);
   return (
-    <form action={run} className="space-y-4" noValidate>
+    <form onSubmit={run} className="space-y-4" noValidate>
       <p className="text-[15px] text-ink-600">
         {isOwner
           ? "This permanently deletes your account, your business, every quote, customer, message and connected mailbox, and cancels your subscription. This can't be undone."

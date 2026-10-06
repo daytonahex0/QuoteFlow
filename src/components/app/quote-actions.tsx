@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useFormAction } from "@/components/ui/use-form-action";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { QuoteStatus } from "@prisma/client";
 import { Pause, Play, Trophy, XCircle, Send, MessageSquareReply, RotateCcw, Trash2, Check, Pencil } from "lucide-react";
@@ -202,7 +203,7 @@ export function EditQuoteDetails({ quoteId, defaults }: { quoteId: string; defau
   const [open, setOpen] = useState(false);
   const toast = useToast();
   const router = useRouter();
-  const [state, action, pending] = useActionState<ActionResult | null, FormData>(async (prev, form) => {
+  const [state, action, pending] = useFormAction(async (prev: ActionResult | null, form: FormData): Promise<ActionResult> => {
     const r = await updateQuoteAction(quoteId, prev, form);
     if (r.ok) {
       toast.success(r.message ?? "Saved.");
@@ -210,7 +211,7 @@ export function EditQuoteDetails({ quoteId, defaults }: { quoteId: string; defau
       router.refresh();
     } else if (!r.fieldErrors) toast.error(r.error);
     return r;
-  }, null);
+  });
   const err = (k: string) => (state && !state.ok ? state.fieldErrors?.[k] : undefined);
   if (!open) {
     return (
@@ -220,7 +221,7 @@ export function EditQuoteDetails({ quoteId, defaults }: { quoteId: string; defau
     );
   }
   return (
-    <form action={action} className="mt-4 space-y-4 border-t border-ink-100 pt-4" noValidate>
+    <form onSubmit={action} className="mt-4 space-y-4 border-t border-ink-100 pt-4" noValidate>
       <Input label="Customer name" name="customerName" defaultValue={defaults.customerName} required error={err("customerName")} />
       <Input label="Phone" name="customerPhone" type="tel" defaultValue={defaults.customerPhone} optional error={err("customerPhone")} />
       <Input label="Quote amount" name="amount" inputMode="decimal" prefix="£" defaultValue={defaults.amount} error={err("amount")} />

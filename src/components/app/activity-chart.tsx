@@ -14,14 +14,13 @@ export function ActivityChart({ data, title = "Follow-ups and replies" }: { data
   const W = 640;
   const H = 180;
   const padL = 28;
-  const padB = 22;
+  const padB = 4;
   const plotW = W - padL;
   const plotH = H - padB - 8;
   const slot = plotW / data.length;
   const barW = Math.max(3, Math.min(14, slot / 2 - 3));
   const y = (v: number) => 8 + plotH - (v / niceMax) * plotH;
   const ticks = [0, niceMax / 2, niceMax];
-  const labelEvery = Math.ceil(data.length / 7);
   const active = hover != null ? data[hover] : null;
   const totalSent = data.reduce((a, d) => a + d.sent, 0);
   const totalReplies = data.reduce((a, d) => a + d.replies, 0);
@@ -52,14 +51,14 @@ export function ActivityChart({ data, title = "Follow-ups and replies" }: { data
               {hover === i && <rect x={padL + slot * i} y={8} width={slot} height={plotH} fill="#f7f8f9" />}
               {bar(d.sent, cx - barW - 1, SENT)}
               {bar(d.replies, cx + 1, REPLIES)}
-              {i % labelEvery === 0 && (
-                <text x={cx} y={H - 6} textAnchor="middle" fontSize="11" fill="#94a0ab">{d.label}</text>
-              )}
               <rect x={padL + slot * i} y={0} width={slot} height={H} fill="transparent" onMouseEnter={() => setHover(i)} onTouchStart={() => setHover(i)} />
             </g>
           );
         })}
       </svg>
+      <div className="mt-1 flex justify-between pl-[4.4%] text-xs text-ink-400 tabular" aria-hidden>
+        {[data[0], data[Math.floor(data.length / 2)], data.at(-1)].map((d, i) => <span key={i}>{d?.label}</span>)}
+      </div>
       <table className="sr-only">
         <caption>{title}</caption>
         <thead><tr><th>Date</th><th>Follow-ups sent</th><th>Replies</th></tr></thead>

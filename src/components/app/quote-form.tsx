@@ -1,18 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useFormAction } from "@/components/ui/use-form-action";
 import { createQuoteAction } from "@/app/actions/quotes";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Toggle } from "@/components/ui/field";
-import type { ActionResult } from "@/lib/errors";
 
 export function NewQuoteForm({ sequences, today, canStart }: { sequences: { id: string; name: string; summary: string; isDefault: boolean }[]; today: string; canStart: boolean }) {
-  const [state, action, pending] = useActionState<ActionResult | null, FormData>(createQuoteAction, null);
+  const [state, action, pending] = useFormAction(createQuoteAction);
   const err = (k: string) => (state && !state.ok ? state.fieldErrors?.[k] : undefined);
   const defaultSeq = sequences.find((s) => s.isDefault) ?? sequences[0];
 
   return (
-    <form action={action} className="space-y-6" noValidate>
+    <form onSubmit={action} className="space-y-6" noValidate>
       {state && !state.ok && !state.fieldErrors && (
         <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{state.error}</div>
       )}
